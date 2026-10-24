@@ -1,4 +1,4 @@
-name: Auto Inject Local Cache
+name: Auto Inject Database Local Cache
 on:
   workflow_dispatch:
 jobs:
@@ -22,67 +22,48 @@ jobs:
           ndk-version: r27
           add-to-path: true
 
-      # 🚨 终极自动修改：不匹配正则，直接强行插入！
-      - name: Auto Patch Local Cache
+      # 🚨 暴击底层：只改数据库层，强行本地缓存！
+      - name: Auto Patch Database Local Cache
         run: |
           python3 - <<'EOF'
           import os
 
-          # 1. 修改网络层控制器
-          file_mc = "TMessagesProj/src/main/java/org/telegram/messenger/MessagesController.java"
-          if os.path.exists(file_mc):
-              with open(file_mc, "r", encoding="utf-8") as f:
-                  lines = f.readlines()
-              
-              injected = False
-              for i, line in enumerate(lines):
-                  # 只要看到处理删除的逻辑，并且还没注入过
-                  if "processDeletedMessages" in line and "{" in line and not injected:
-                      # 强行在下一行插入本地缓存代码
-                      lines.insert(i + 1, """
-                          try {
-                              java.io.File cacheFile = new java.io.File(ApplicationLoader.applicationContext.getFilesDir(), "secret_cache.txt");
-                              java.io.FileWriter fw = new java.io.FileWriter(cacheFile, true);
-                              fw.write("发现撤回动作，时间: " + System.currentTimeMillis() + "\\n");
-                              fw.close();
-                          } catch (Exception e) {}
-                      """)
-                      injected = True
-                      break
-              
-              if injected:
-                  with open(file_mc, "w", encoding="utf-8") as f:
-                      f.writelines(lines)
-                  print("✅ 成功自动注入网络层缓存！")
-              else:
-                  print("⚠️ 网络层找不到对应方法。")
-
-          # 2. 修改底层数据库层
+          # 只针对底层数据库操作文件
           file_ms = "TMessagesProj/src/main/java/org/telegram/messenger/MessagesStorage.java"
-          if os.path.exists(file_ms):
-              with open(file_ms, "r", encoding="utf-8") as f:
-                  lines = f.readlines()
-              
-              injected_ms = False
-              for i, line in enumerate(lines):
-                  if "markMessagesDeleted" in line and "{" in line and not injected_ms:
-                      lines.insert(i + 1, """
-                          try {
-                              java.io.File cacheFile = new java.io.File(ApplicationLoader.applicationContext.getFilesDir(), "secret_cache.txt");
-                              java.io.FileWriter fw = new java.io.FileWriter(cacheFile, true);
-                              fw.write("数据库收到删除指令，拦截保存！\\n");
-                              fw.close();
-                          } catch (Exception e) {}
-                      """)
-                      injected_ms = True
-                      break
-              
-              if injected_ms:
-                  with open(file_ms, "w", encoding="utf-8") as f:
-                      f.writelines(lines)
-                  print("✅ 成功自动注入数据库层缓存！")
-              else:
-                  print("⚠️ 数据库层找不到对应方法。")
+          
+          if not os.path.exists(file_ms):
+              print("❌ 找不到 MessagesStorage.java 文件！")
+              exit(1)
+
+          with open(file_ms, "r", encoding="utf-8") as f:
+              lines = f.readlines()
+
+          injected = False
+          
+          # 逐行扫描，找数据库删除指令
+          for i, line in enumerate(lines):
+              # 只要找到这个方法名，不管后面参数多长，只要有大括号就算
+              if "markMessagesDeleted" in line and "{" in line and not injected:
+                  # 强行在下一行插入本地缓存代码
+                  lines.insert(i + 1, """
+                      // 🚨 强行注入本地数据库缓存！
+                      try {
+                          java.io.File cacheFile = new java.io.File(ApplicationLoader.applicationContext.getFilesDir(), "local_deleted_cache.txt");
+                          java.io.FileWriter fw = new java.io.FileWriter(cacheFile, true);
+                          fw.write("本地数据即将删除，已拦截！时间: " + System.currentTimeMillis() + "\\n");
+                          fw.close();
+                      } catch (Exception e) {}
+                  """)
+                  injected = True
+                  print("✅ 成功在本地数据库层自动注入缓存代码！")
+                  break
+
+          if not injected:
+              print("⚠️ 警告：没有找到 markMessagesDeleted 方法，官方可能改名了。")
+
+          if injected:
+              with open(file_ms, "w", encoding="utf-8") as f:
+                  f.writelines(lines)
           EOF
 
       - name: Grant execute permission for gradlew
@@ -94,5 +75,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AutoCache-Telegram
+          name: DatabaseCache-Telegram
           path: "**/*.apk"
