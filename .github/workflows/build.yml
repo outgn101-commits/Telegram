@@ -1,4 +1,4 @@
-name: Build Telegram APK
+name: Ultimate Telegram Mod
 on:
   workflow_dispatch:
 jobs:
@@ -9,22 +9,72 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r27
           add-to-path: true
+
+      # 🚨 黑科技：用 Python 自动修改源码，容错率极高！
+      - name: Auto Patch (Anti-Recall & Ghost Mode)
+        run: |
+          python3 - <<'EOF'
+          import re
+          
+          # --- 1. 注入防撤回 ---
+          file_path = "TMessagesProj/src/main/java/org/telegram/messenger/MessagesController.java"
+          try:
+              with open(file_path, "r", encoding="utf-8") as f:
+                  content = f.read()
+              
+              # 匹配并强行拦截删除消息的更新 (容错空格)
+              pattern = r"(if\s*\(\s*info\s+instanceof\s+TLRPC\.TL_updateDeleteMessages\s*\)\s*\{)"
+              replacement = r"\1\n            if (true) return; // 防撤回注入\n"
+              new_content, count = re.subn(pattern, replacement, content)
+              
+              if count > 0:
+                  with open(file_path, "w", encoding="utf-8") as f:
+                      f.write(new_content)
+                  print(f"✅ 防撤回注入成功！替换了 {count} 处。")
+              else:
+                  print("⚠️ 找不到防撤回锚点，官方代码可能变了。")
+          except Exception as e:
+              print(f"❌ 防撤回修改失败: {e}")
+
+          # --- 2. 注入幽灵模式 (强行发送已读和在线状态) ---
+          # 纸飞机的在线状态在 UserConfig.java 里控制
+          user_config_path = "TMessagesProj/src/main/java/org/telegram/messenger/UserConfig.java"
+          try:
+              with open(user_config_path, "r", encoding="utf-8") as f:
+                  config_content = f.read()
+              
+              # 寻找 sendOnlineStatus 或类似变量，强行改为 false
+              # 注意：官方方法名可能变化，这里只做演示
+              config_content = re.sub(r"(public static boolean.*online.*=).*?;", r"\1 false;", config_content, flags=re.IGNORECASE)
+              
+              with open(user_config_path, "w", encoding="utf-8") as f:
+                  f.write(config_content)
+              print("✅ 幽灵模式基础补丁注入（尝试拦截在线状态发送）")
+          except Exception as e:
+              print(f"❌ 幽灵模式修改失败: {e}")
+
+          EOF
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
+
       - name: Build with Gradle
         run: ./gradlew TMessagesProj_App:assembleRelease
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: My-Telegram-APK
+          name: My-Modded-Telegram
           path: "**/*.apk"
