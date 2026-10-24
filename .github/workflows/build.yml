@@ -1,4 +1,4 @@
-name: Ultimate Telegram Mod with Self-Check
+name: Ultimate Telegram Mod
 on:
   workflow_dispatch:
 jobs:
@@ -22,68 +22,19 @@ jobs:
           ndk-version: r27
           add-to-path: true
 
-      # 🚨 带有自检功能的智能打补丁脚本
-      - name: Smart Patch with Syntax Check
+      # 🚨 暴力硬改官方纯血源码：防撤回 + 幽灵模式
+      - name: Force Patch (Anti-Recall & Ghost)
         run: |
-          python3 - <<'EOF'
-          import os
-          import re
-
-          def check_brackets(code):
-              # 简单检查大括号是否配对 (忽略字符串和注释中的情况，这里只做粗略检查)
-              return code.count('{') == code.count('}')
-
-          def patch_file(filepath, search_pattern, inject_code, description):
-              if not os.path.exists(filepath):
-                  print(f"❌ 找不到文件: {filepath}")
-                  return False
-              
-              with open(filepath, 'r', encoding='utf-8') as f:
-                  content = f.read()
-              
-              if inject_code in content:
-                  print(f"✅ {description} 已经存在，跳过。")
-                  return True
-              
-              # 尝试匹配
-              new_content, count = re.subn(search_pattern, inject_code, content, count=1)
-              
-              if count == 0:
-                  print(f"⚠️ 警告：找不到 {description} 的匹配点，官方代码可能改版了。")
-                  return False
-              
-              # 语法自检：检查大括号数量
-              if not check_brackets(new_content):
-                  print(f"❌ 错误：修改 {description} 后大括号不匹配！已撤销修改。")
-                  return False
-              
-              # 写入文件
-              with open(filepath, 'w', encoding='utf-8') as f:
-                  f.write(new_content)
-              print(f"✅ {description} 注入成功并通过语法自检！")
-              return True
-
-          print("=== 开始智能注入补丁 ===")
+          echo "开始注入防撤回..."
+          sed -i '/private void processDeletedMessages/,/)/ s/{/{ if (true) return; /' TMessagesProj/src/main/java/org/telegram/messenger/MessagesController.java
           
-          # 1. 防撤回补丁
-          file_mc = "TMessagesProj/src/main/java/org/telegram/messenger/MessagesController.java"
-          pattern_recall = r"(if\s*\(\s*info\s+instanceof\s+TLRPC\.TL_updateDeleteMessages\s*\)\s*\{)"
-          inject_recall = r"\1\n            if (true) return; // Anti-Recall\n"
-          patch_file(file_mc, pattern_recall, inject_recall, "防撤回")
-
-          # 2. 防已读补丁
-          file_send = "TMessagesProj/src/main/java/org/telegram/messenger/SendMessagesHelper.java"
-          pattern_read = r"(public void sendReadMessages\([^)]*\)\s*\{)"
-          inject_read = r"\1\n        if (true) return; // Block Read Status\n"
-          patch_file(file_send, pattern_read, inject_read, "幽灵模式(防已读)")
-
-          # 3. 防“正在输入”补丁
-          pattern_typing = r"(public void sendTyping\([^)]*\)\s*\{)"
-          inject_typing = r"\1\n        if (true) return; // Block Typing Status\n"
-          patch_file(file_send, pattern_typing, inject_typing, "幽灵模式(防正在输入)")
-
-          print("=== 补丁注入流程结束 ===")
-          EOF
+          echo "开始注入幽灵模式(防已读)..."
+          sed -i '/public void sendReadMessages/,/)/ s/{/{ if (true) return; /' TMessagesProj/src/main/java/org/telegram/messenger/SendMessagesHelper.java
+          
+          echo "开始注入幽灵模式(防正在输入)..."
+          sed -i '/public void sendTyping/,/)/ s/{/{ if (true) return; /' TMessagesProj/src/main/java/org/telegram/messenger/SendMessagesHelper.java
+          
+          echo "补丁注入完成！"
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
