@@ -27,4 +27,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: My-Telegram-APK
-          path: TMessagesProj_App/build/outputs/apk/release/*.apk
+          path: "**/*.apk"
